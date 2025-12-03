@@ -6,6 +6,12 @@ Implementation and comparison of Policy Gradient algorithms (REINFORCE) on the C
 
 This project implements the **REINFORCE** algorithm (Monte Carlo Policy Gradient) and its variant **REINFORCE with Baseline**. The goal is to solve the `CartPole-v1` environment, where the agent must balance a pole on a cart. The environment is considered solved when the average reward over 100 consecutive episodes is at least 475.0.
 
+## Results Example
+
+Below is a sample plot comparing the moving average reward of Vanilla REINFORCE and REINFORCE with Baseline agents:
+
+![Comparison: Moving Average Reward (Window=100)](results/comparison.png)
+
 ## Project Structure
 ```
 Root/

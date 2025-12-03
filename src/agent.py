@@ -103,6 +103,10 @@ class Agent:
         """
         stats = {'rewards': [], 'loss': [], 'episodes_trained': 0, 'converged': False}
         
+        # Define a Learning Rate Scheduler
+        # Will avoid the learning rate being too high for too long, which might cause later steps instability
+        scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=200, gamma=0.9)
+        
         for episode in range(1, max_episodes + 1):
             state, _ = env.reset()
             episode_reward = 0
@@ -122,8 +126,11 @@ class Agent:
             
             # 2. Update Policy (at the end of episode)
             loss = self.update()
+
+            # 3. Step the scheduler
+            scheduler.step()
             
-            # 3. Logging and Cleanup
+            # 4. Logging and Cleanup
             stats['rewards'].append(episode_reward)
             if loss is not None:
                 stats['loss'].append(loss)
@@ -146,7 +153,7 @@ class Agent:
             
             if episode % 50 == 0:
                 avg_r = np.mean(stats['rewards'][-min(episode, window):])
-                print(f"Episode {episode} | Reward: {episode_reward:.2f} | Avg ({window}): {avg_r:.2f}")
+                print(f"Episode {episode} | MA Reward ({window} episodes): {avg_r:.2f}")
                 
         return stats
 
