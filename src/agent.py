@@ -91,7 +91,7 @@ class Agent:
         """
         raise NotImplementedError
 
-    def train(self, env: gym.Env, max_episodes: int = 1000) -> Dict[str, Any]:
+    def train(self, env: gym.Env, max_episodes: int = 1000, target_reward: float = 475.0, window: int = 100) -> Dict[str, Any]:
         """
         Executes the main training loop for Episodic Policy Gradient.
         
@@ -99,9 +99,9 @@ class Agent:
         1.  Reset environment.
         2.  **Sampling**: Run one full episode using `select_action`, storing rewards and log probs.
         3.  **Evaluation & Improvement**: Call `self.update()` to calculate returns and update weights.
-        4.  Repeat until max_episodes.
+        4.  Repeat until max_episodes or convergence criteria met.
         """
-        stats = {'rewards': [], 'loss': []}
+        stats = {'rewards': [], 'loss': [], 'episodes_trained': 0, 'converged': False}
         
         for episode in range(1, max_episodes + 1):
             state, _ = env.reset()
@@ -133,8 +133,20 @@ class Agent:
             self.rewards = []
             self.values = []
             
+            # Check convergence
+            if len(stats['rewards']) >= window:
+                avg_reward = np.mean(stats['rewards'][-window:])
+                if avg_reward >= target_reward:
+                    print(f"\nConverged at episode {episode} with average reward {avg_reward:.2f}!")
+                    stats['converged'] = True
+                    stats['episodes_trained'] = episode
+                    break
+            
+            stats['episodes_trained'] = episode
+            
             if episode % 50 == 0:
-                print(f"Episode {episode} | Reward: {episode_reward:.2f}")
+                avg_r = np.mean(stats['rewards'][-min(episode, window):])
+                print(f"Episode {episode} | Reward: {episode_reward:.2f} | Avg ({window}): {avg_r:.2f}")
                 
         return stats
 

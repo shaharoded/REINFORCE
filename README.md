@@ -1,12 +1,10 @@
 # Deep Reinforcement Learning - Assignment 2
 
-Implementation and comparison of REINFORCE algorithms on the CartPole-v1 task.
+Implementation and comparison of Policy Gradient algorithms (REINFORCE) on the CartPole-v1 task.
 
 ## Overview
 
-This project implements ...
-[TO-DO]
-
+This project implements the **REINFORCE** algorithm (Monte Carlo Policy Gradient) and its variant **REINFORCE with Baseline**. The goal is to solve the `CartPole-v1` environment, where the agent must balance a pole on a cart. The environment is considered solved when the average reward over 100 consecutive episodes is at least 475.0.
 
 ## Project Structure
 ```
@@ -14,73 +12,37 @@ Root/
 ├── src/
 │   ├── init.py                         # Package initialization
 │   ├── agent.py                        # Agent implementations
-│   │   ├── Agent                       # Base class
-│   │   ├── QLearningAgent              # Tabular Q-Learning
-│   │   ├── DeepQLearningAgent          # Standard DQN
-│   │   └── DoubleDeepQLearningAgent    # Double DQN
+│   │   ├── Agent                       # Base class (Sampling logic)
+│   │   ├── ReinforceAgent              # Vanilla REINFORCE
+│   │   └── ReinforceBaselineAgent      # REINFORCE with Value Baseline
 │   ├── ffnn.py                         # Neural network architectures
-│   │   └── QNetwork                    # Feedforward Q-network
-│   └── utils.py                        # Replay buffers and utilities
-│       ├── ReplayBuffer                # Standard uniform replay
-│       └── PrioritizedReplayBuffer     # Priority-based replay
+│   │   ├── PolicyNetwork               # Actor (Policy)
+│   │   └── ValueNetwork                # Critic (Baseline)
+│   └── utils.py                        # Utilities (Return calculation)
 ├── mainColab.ipynb                     # Main notebook for training and evaluation
-├── results/                            # Training outputs (plots, summaries, policies)
-│   ├── section1/                       # Q-Learning results
-│   ├── section2/                       # DQN results
-│   └── section3/                       # Double DQN results
+├── results/                            # Training outputs (plots, summaries)
 ├── models/                             # Saved model checkpoints
 └── requirements.txt                    # Python dependencies
 ```
 
-## Agents
+## Algorithms
 
-### Common API
-All agents inherit from the `Agent` base class and share a common interface:
+### 1. Vanilla REINFORCE
+The standard Monte Carlo Policy Gradient algorithm.
+- **Update Rule**: $\nabla J(\theta) \approx \sum \nabla \log \pi(a_t|s_t) \cdot G_t$
+- Uses the actual discounted return $G_t$ as an unbiased but high-variance estimate of the gradient.
 
-**Core Methods:**
-- `select_action(state, training=True)` - Choose an action (with exploration if training)
-- `update(state, action, reward, next_state, done)` - Learn from a transition
-- `train(env, num_episodes, ...)` - Complete training loop
-- `evaluate(env, num_episodes=10)` - Evaluate performance
-- `save(filepath)` / `load(filepath)` - Persist agent state
+### 2. REINFORCE with Baseline
+Improves upon vanilla REINFORCE by subtracting a state-dependent baseline $V(s)$ from the return.
+- **Update Rule**: $\nabla J(\theta) \approx \sum \nabla \log \pi(a_t|s_t) \cdot (G_t - V(s_t))$
+- **Advantage**: $(G_t - V(s_t))$ reduces variance without introducing bias.
+- **Value Network**: A separate neural network learns to approximate $V(s)$ by minimizing MSE against $G_t$.
 
-**Configuration:**
-All agents accept a `config` dictionary with hyperparameters like:
-- `learning_rate`: Learning rate for updates
-- `gamma`: Discount factor for future rewards
-- `epsilon_start/min/decay`: Exploration parameters
+## Usage
 
->> See mainColab.ipynb for usage examples.
-
-### 1. QLearning (Tabular Q-Learning)
-Traditional Q-Learning with tabular representation. Suitable for discrete state spaces.
-
-**Key Features:**
-- Q-table for state-action values
-- ε-greedy exploration
-- Temporal Difference learning
-
-### 2. DeepQLearning (DQN)
-Deep Q-Network using neural networks to approximate Q-values.
-
-**Key Features:**
-- Neural network for function approximation
-- Experience replay buffer
-- Target network for stable learning
-- ε-greedy exploration with decay
-
-### 3. ImprovedDeepQLearning
-Enhanced DQN with modern improvements.
-
-**Key Features:**
-- Double DQN
-- Prioritized experience replay
-
-## Evaluation
-Each agent can be evaluated on:
-- Training performance (reward over episodes)
-- Final policy performance
-- Convergence stability
-
-## Results
-Results including training curves and performance metrics will be saved in the `results/` directory.
+Open `mainColab.ipynb` to run the full training and evaluation pipeline.
+The notebook covers:
+1.  Environment setup.
+2.  Training Vanilla REINFORCE.
+3.  Training REINFORCE with Baseline.
+4.  Comparative analysis of convergence speed and stability.
