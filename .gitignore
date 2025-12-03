@@ -12,5 +12,4 @@ __pycache__/
 # Training artifacts
 models/*.pth
 models/*.npz
-results/
 models/
