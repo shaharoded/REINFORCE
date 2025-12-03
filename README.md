@@ -10,7 +10,7 @@ This project implements the **REINFORCE** algorithm (Monte Carlo Policy Gradient
 
 Below is a sample plot comparing the moving average reward of Vanilla REINFORCE and REINFORCE with Baseline agents:
 
-![Comparison: Moving Average Reward (Window=100)](results/comparison.png)
+<img src="results/comparison.png" alt="Comparison: Moving Average Reward (Window=100)" width="700"/>
 
 ## Project Structure
 ```
