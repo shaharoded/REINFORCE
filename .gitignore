@@ -1,6 +1,6 @@
 # Assignment PDFs
 *.pdf
-*.docx
+# *.docx
 markdown/
 
 # Python

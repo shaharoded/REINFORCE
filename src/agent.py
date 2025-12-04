@@ -245,3 +245,135 @@ class ReinforceBaselineAgent(Agent):
         self.value_optimizer.step()
         
         return p_loss.item() + v_loss.item()
+    
+class ActorCriticAgent(Agent):
+    """
+    One-Step Actor-Critic Agent.
+    
+    Updates the policy (Actor) and value function (Critic) at every time step
+    using the TD-error as the advantage estimate.
+    """
+    def __init__(self, state_dim: int, action_dim: int, config: Optional[Dict[str, Any]] = None):
+        super().__init__(state_dim, action_dim, config)
+        
+        # Separate Learning Rates
+        # The Critic (Value function) typically needs a higher learning rate than the Actor
+        self.lr_actor = config.get('learning_rate_actor', self.lr)
+        self.lr_critic = config.get('learning_rate_critic', 1e-3)
+        
+        # Re-initialize Actor optimizer with specific LR
+        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.lr_actor)
+        
+        # Critic Network (Value Function V(s))
+        self.value_net = ValueNetwork(state_dim, self.hidden_dims)
+        self.value_optimizer = optim.Adam(self.value_net.parameters(), lr=self.lr_critic)
+
+    def update(self) -> float:
+        """
+        Not used in One-Step Actor-Critic as updates happen inside the training loop.
+        """
+        pass
+
+    def train(self, env: gym.Env, max_episodes: int = 1000, target_reward: float = 475.0, window: int = 100) -> Dict[str, Any]:
+        """
+        Modified training loop for Online/One-step Actor Critic.
+        """
+        stats = {'rewards': [], 'loss': [], 'episodes_trained': 0, 'converged': False}
+        
+        for episode in range(1, max_episodes + 1):
+            state, _ = env.reset()
+            episode_reward = 0
+            
+            # Initialize I (discount factor)
+            I = 1.0 
+            
+            episode_losses = []
+            
+            while True:
+                # --- 1. Actor Step: Select Action ---
+                state_t = torch.FloatTensor(state)
+                logits = self.policy_net(state_t)
+                dist = Categorical(logits=logits)
+                action = dist.sample()
+                log_prob = dist.log_prob(action)
+                
+                # --- 2. Environment Step ---
+                next_state, reward, terminated, truncated, _ = env.step(action.item())
+                done = terminated or truncated
+                
+                # --- 3. Critic Step: Compute TD Error ---
+                # V(S)
+                value = self.value_net(state_t)
+                
+                # V(S')
+                with torch.no_grad():
+                    if done:
+                        v_next = 0.0
+                    else:
+                        v_next = self.value_net(torch.FloatTensor(next_state)).item()
+                    
+                    # Target = R + gamma * V(S')
+                    target = reward + self.gamma * v_next
+                    
+                    # TD Error (delta) = Target - V(S)
+                    delta = target - value.item()
+                
+                # --- 4. Update Critic (w) ---
+                # Algorithm: w <- w + alpha * I * delta * grad(v)
+                # Minimize: I * (V(S) - Target)^2
+                target_t = torch.tensor([target])
+                
+                # Scale critic loss by I to match algorithm
+                critic_loss = I * F.mse_loss(value, target_t)
+                
+                self.value_optimizer.zero_grad()
+                critic_loss.backward()
+                # Optional: Gradient clipping for stability
+                torch.nn.utils.clip_grad_norm_(self.value_net.parameters(), 0.5)
+                self.value_optimizer.step()
+                
+                # --- 5. Update Actor (theta) ---
+                # Maximize: I * delta * log(pi(a|s))
+                # Loss = - (I * delta * log_prob)
+                
+                # Note: delta is detached (scalar), I is scalar.
+                actor_loss = - (I * delta * log_prob)
+                
+                self.optimizer.zero_grad()
+                actor_loss.backward()
+                # Optional: Gradient clipping for stability
+                torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 0.5)
+                self.optimizer.step()
+                
+                # Record stats
+                episode_losses.append(critic_loss.item() + actor_loss.item())
+                
+                # --- 6. Update I and State ---
+                I *= self.gamma
+                episode_reward += reward
+                state = next_state
+                
+                if done:
+                    break
+            
+            # Logging
+            stats['rewards'].append(episode_reward)
+            if episode_losses:
+                stats['loss'].append(np.mean(episode_losses))
+            
+            # Check convergence
+            if len(stats['rewards']) >= window:
+                avg_reward = np.mean(stats['rewards'][-window:])
+                if avg_reward >= target_reward:
+                    print(f"\nConverged at episode {episode} with average reward {avg_reward:.2f}!")
+                    stats['converged'] = True
+                    stats['episodes_trained'] = episode
+                    break
+            
+            stats['episodes_trained'] = episode
+            
+            if episode % 50 == 0:
+                avg_r = np.mean(stats['rewards'][-min(episode, window):])
+                print(f"Episode {episode} | MA Reward ({window} episodes): {avg_r:.2f}")
+                
+        return stats
