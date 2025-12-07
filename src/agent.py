@@ -1,3 +1,4 @@
+from random import random
 import numpy as np
 import torch
 import torch.optim as optim
@@ -7,7 +8,7 @@ from typing import Dict, Any, Optional
 import gymnasium as gym
 
 # Local imports
-from src.ffnn import PolicyNetwork, ValueNetwork
+from src.ffnn import PolicyNetwork, ValueNetwork, ActorNetwork, CriticNetwork
 from src.utils import calculate_returns
 
 class Agent:
@@ -245,3 +246,116 @@ class ReinforceBaselineAgent(Agent):
         self.value_optimizer.step()
         
         return p_loss.item() + v_loss.item()
+    
+class ActorCriticAgent(Agent):
+    def __init__(self, state_dim: int, action_dim: int, config: Optional[Dict[str, Any]] = None):
+        super().__init__(state_dim, action_dim, config)
+        
+        # Hyperparameters
+        self.lr_actor = self.config.get('learning_rate_actor', 5e-4)
+        self.lr_critic = self.config.get('learning_rate_critic', 1e-3)
+        self.entropy_beta = self.config.get('entropy_beta', 0.01)
+        
+        # --- CHANGE 1: Initialize separate Actor and Critic networks ---
+        self.actor = ActorNetwork(state_dim, action_dim, self.hidden_dims)
+        self.critic = CriticNetwork(state_dim, self.hidden_dims)
+        
+        # --- CHANGE 2: Create separate optimizers ---
+        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.lr_actor)
+        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.lr_critic)
+
+    def update(self) -> float:
+        """
+        Not used in One-Step Actor-Critic as updates happen inside the training loop.
+        """
+        pass
+
+    def train(self, env: gym.Env, max_episodes: int = 1000, target_reward: float = 475.0, window: int = 100) -> Dict[str, Any]:
+        stats = {'rewards': [], 'loss': [], 'episodes_trained': 0, 'converged': False}
+        
+        for episode in range(1, max_episodes + 1):
+            state, _ = env.reset()
+            # Fix: Add batch dimension
+            state = torch.FloatTensor(state).unsqueeze(0)
+            
+            episode_reward = 0
+            I = 1.0 
+            episode_losses = []
+            
+            while True:
+            # --- 1. Actor Step ---
+                logits = self.actor(state)
+                dist = Categorical(logits=logits)
+                action = dist.sample()
+
+                # --- 2. Environment Step ---
+                next_state_np, reward, terminated, truncated, _ = env.step(action.item())
+                done = terminated or truncated
+                next_state = torch.FloatTensor(next_state_np).unsqueeze(0)
+
+                # --- 3. Critic Step ---
+                value_s = self.critic(state) # Shape [1, 1]
+
+                with torch.no_grad():
+                    if done:
+                        value_next_s = torch.tensor([[0.0]])
+                    else:
+                        value_next_s = self.critic(next_state)
+                    
+                    # Target is [1, 1]
+                    target = reward + self.gamma * value_next_s
+
+                # Calculate Delta (Advantage)
+                # We detach value_s here to get a clean scalar/tensor for the Actor
+                delta = target - value_s
+
+                # --- 4. Update Critic ---
+                # Compare [1, 1] to [1, 1]. NO WRAPPING.
+                critic_loss = I * F.mse_loss(value_s, target)
+
+                self.critic_optimizer.zero_grad()
+                critic_loss.backward()
+                self.critic_optimizer.step()
+
+                # --- 5. Update Actor ---
+                log_prob = dist.log_prob(action)
+                entropy = dist.entropy()
+
+                # We use delta.detach() so the Actor doesn't try to update the Critic
+                actor_loss = - I * ((delta.detach() * log_prob) + (self.entropy_beta * entropy))
+
+                self.actor_optimizer.zero_grad()
+                actor_loss.backward()
+                self.actor_optimizer.step()
+
+                # Record total loss
+                episode_losses.append(critic_loss.item() + actor_loss.item())
+
+                # --- 6. Update I and State ---
+                I *= self.gamma
+                episode_reward += reward
+                state = next_state
+
+                if done:
+                    break
+            
+            stats['rewards'].append(episode_reward)
+            if episode_losses:
+                stats['loss'].append(np.mean(episode_losses))
+            
+            # Check convergence
+            if len(stats['rewards']) >= window:
+                avg_reward = np.mean(stats['rewards'][-window:])
+                if avg_reward >= target_reward:
+                    print(f"\nConverged at episode {episode} with average reward {avg_reward:.2f}!")
+                    stats['converged'] = True
+                    stats['episodes_trained'] = episode
+                    break
+            
+            stats['episodes_trained'] = episode
+            
+            if episode % 50 == 0:
+                avg_r = np.mean(stats['rewards'][-min(episode, window):])
+                print(f"Episode {episode} | MA Reward ({window} episodes): {avg_r:.2f}")
+                
+        return stats

@@ -56,3 +56,56 @@ class ValueNetwork(nn.Module):
         
     def forward(self, state: torch.Tensor) -> torch.Tensor:
         return self.network(state)
+
+class ActorNetwork(nn.Module):
+    """
+    The Actor (Policy) Network.
+    Input: State
+    Output: Logits for action probabilities
+    """
+    def __init__(self, state_dim: int, action_dim: int, hidden_dims: List[int] = [128, 128]):
+        super(ActorNetwork, self).__init__()
+        
+        layers = []
+        input_dim = state_dim
+        
+        # Build hidden layers
+        for hidden_dim in hidden_dims:
+            layers.append(nn.Linear(input_dim, hidden_dim))
+            layers.append(nn.ReLU())
+            input_dim = hidden_dim
+            
+        # Output layer (Action logits)
+        layers.append(nn.Linear(input_dim, action_dim))
+        
+        self.network = nn.Sequential(*layers)
+        
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
+        return self.network(state)
+
+
+class CriticNetwork(nn.Module):
+    """
+    The Critic (Value) Network.
+    Input: State
+    Output: Scalar Value V(s)
+    """
+    def __init__(self, state_dim: int, hidden_dims: List[int] = [128, 128]):
+        super(CriticNetwork, self).__init__()
+        
+        layers = []
+        input_dim = state_dim
+        
+        # Build hidden layers
+        for hidden_dim in hidden_dims:
+            layers.append(nn.Linear(input_dim, hidden_dim))
+            layers.append(nn.ReLU())
+            input_dim = hidden_dim
+            
+        # Output layer (Single scalar value)
+        layers.append(nn.Linear(input_dim, 1))
+        
+        self.network = nn.Sequential(*layers)
+        
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
+        return self.network(state)
