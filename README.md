@@ -2,15 +2,11 @@
 
 Implementation and comparison of Policy Gradient algorithms (REINFORCE) on the CartPole-v1 task.
 
+<img src="results/comparison.png" alt="Comparison: Moving Average Reward (Window=100)" width="700"/>
+
 ## Overview
 
 This project implements the **REINFORCE** algorithm (Monte Carlo Policy Gradient), its variant **REINFORCE with Baseline**, and the **One-Step Actor-Critic** algorithm. The goal is to solve the `CartPole-v1` environment, where the agent must balance a pole on a cart. The environment is considered solved when the average reward over 100 consecutive episodes is at least 475.0.
-
-## Results Example
-
-Below is a sample plot comparing the moving average reward of Vanilla REINFORCE, REINFORCE with Baseline, and Actor-Critic agents:
-
-<img src="results/comparison.png" alt="Comparison: Moving Average Reward (Window=100)" width="700"/>
 
 ## Project Structure
 ```
