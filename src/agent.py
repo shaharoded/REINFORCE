@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 import gymnasium as gym
 
 # Local imports
-from src.ffnn import PolicyNetwork, ValueNetwork, ActorNetwork, CriticNetwork
+from src.ffnn import PolicyNetwork, ValueNetwork
 from src.utils import calculate_returns
 
 class Agent:
@@ -257,8 +257,8 @@ class ActorCriticAgent(Agent):
         self.entropy_beta = self.config.get('entropy_beta', 0.01)
         
         # --- CHANGE 1: Initialize separate Actor and Critic networks ---
-        self.actor = ActorNetwork(state_dim, action_dim, self.hidden_dims)
-        self.critic = CriticNetwork(state_dim, self.hidden_dims)
+        self.actor = PolicyNetwork(state_dim, action_dim, self.hidden_dims)
+        self.critic = ValueNetwork(state_dim, self.hidden_dims)
         
         # --- CHANGE 2: Create separate optimizers ---
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.lr_actor)
