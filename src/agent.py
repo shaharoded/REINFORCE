@@ -204,9 +204,21 @@ class ReinforceBaselineAgent(Agent):
     def __init__(self, state_dim: int, action_dim: int, config: Optional[Dict[str, Any]] = None):
         super().__init__(state_dim, action_dim, config)
         
+        # Separate learning rates (fall back to shared lr if not specified)
+        self.lr_policy = self.config.get('learning_rate_policy', self.lr)
+        self.lr_value = self.config.get('learning_rate_value', self.lr)
+        
+        # Separate hidden dims (fall back to shared dims if not specified)
+        hidden_dims_policy = self.config.get('hidden_dims_policy', self.hidden_dims)
+        hidden_dims_value = self.config.get('hidden_dims_value', self.hidden_dims)
+        
+        # Re-initialize policy network with correct dims and optimizer with correct LR
+        self.policy_net = PolicyNetwork(state_dim, action_dim, hidden_dims_policy)
+        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.lr_policy)
+        
         # Initialize Value Network (V_v) to approximate V_pi 
-        self.value_net = ValueNetwork(state_dim, self.hidden_dims)
-        self.value_optimizer = optim.Adam(self.value_net.parameters(), lr=self.lr)
+        self.value_net = ValueNetwork(state_dim, hidden_dims_value)
+        self.value_optimizer = optim.Adam(self.value_net.parameters(), lr=self.lr_value)
 
     def _on_action_selected(self, state_tensor: torch.Tensor):
         """Store V(s) for the current state."""
@@ -248,6 +260,25 @@ class ReinforceBaselineAgent(Agent):
         return p_loss.item() + v_loss.item()
     
 class ActorCriticAgent(Agent):
+    """
+    One-Step Advantage Actor-Critic (A2C) Agent.
+    
+    Unlike REINFORCE, updates occur at every timestep using TD(0) bootstrapping:
+        δ = r + γV(s') - V(s)  (TD error / advantage estimate)
+    
+    Update Rules:
+    -   Critic: minimize (V(s) - target)² where target = r + γV(s')
+    -   Actor: maximize δ · log π(a|s) + β · H(π)
+    
+    Note on γ^t factor: The theoretical algorithm includes I = γ^t to discount
+    later gradients, but this is omitted here (standard practice) as it causes
+    vanishing gradients in long episodes and most libraries don't use it.
+    
+    Hyperparameters:
+    -   learning_rate_actor/critic: Separate LRs (critic typically higher)
+    -   entropy_beta: Entropy bonus coefficient for exploration
+    -   hidden_dims_actor/critic: Network architectures
+    """
     def __init__(self, state_dim: int, action_dim: int, config: Optional[Dict[str, Any]] = None):
         super().__init__(state_dim, action_dim, config)
         
@@ -256,11 +287,15 @@ class ActorCriticAgent(Agent):
         self.lr_critic = self.config.get('learning_rate_critic', 1e-3)
         self.entropy_beta = self.config.get('entropy_beta', 0.01)
         
-        # --- CHANGE 1: Initialize separate Actor and Critic networks ---
-        self.actor = PolicyNetwork(state_dim, action_dim, self.hidden_dims)
-        self.critic = ValueNetwork(state_dim, self.hidden_dims)
+        # Separate hidden dims
+        hidden_dims_actor = self.config.get('hidden_dims_actor', self.hidden_dims)
+        hidden_dims_critic = self.config.get('hidden_dims_critic', self.hidden_dims)
         
-        # --- CHANGE 2: Create separate optimizers ---
+        # Initialize separate Actor and Critic networks
+        self.actor = PolicyNetwork(state_dim, action_dim, hidden_dims_actor)
+        self.critic = ValueNetwork(state_dim, hidden_dims_critic)
+        
+        # Create separate optimizers
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.lr_actor)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.lr_critic)
 
