@@ -21,8 +21,6 @@ Root/
 │   ├── ffnn.py                         # Neural network architectures
 │   │   ├── PolicyNetwork               # Actor (Policy)
 │   │   ├── ValueNetwork                # Critic (Baseline)
-│   │   ├── ActorNetwork                # Actor (Policy) for Actor-Critic
-│   │   └── CriticNetwork               # Critic (Value) for Actor-Critic
 │   └── utils.py                        # Utilities (Return calculation)
 ├── mainColab.ipynb                     # Main notebook for training and evaluation
 ├── results/                            # Training outputs (plots, summaries)
